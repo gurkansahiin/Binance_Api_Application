@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Picker } from '@react-native-picker/picker'; // İçe aktarım
 import { useNavigation } from '@react-navigation/native'; // Navigasyon
 
-const API_KEY = process.env.REACT_APP_AI_API_KEY; // Veya uygun ortam değişkeni
+const API_KEY = process.env.OPENAI_API_KEY; // Veya uygun ortam değişkeni
 const BINANCE_API_URL = process.env.REACT_APP_BINANCE_API_URL; // Veya uygun ortam değişkeni
 
 const coins = [
