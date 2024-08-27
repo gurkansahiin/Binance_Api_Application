@@ -1,17 +1,60 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
+import { collection, getDocs, query, where, doc, updateDoc, addDoc } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
+import { sellCoin } from '../components/sellCoin';
+import { handleCoin } from '../components/handleCoin';
 
+import { LineChart } from 'react-native-chart-kit';
 
-const CoinPage = () => {
+async function getBalanceByEmail(email) {
+  try {
+    const q = query(collection(db, "BankUser"), where("kullanici", "==", email));
+    const querySnapshot = await getDocs(q);
+
+    let balance = null;
+    querySnapshot.forEach((doc) => {
+      if (doc.exists()) {
+        balance = doc.data().kasa; // Assuming "kasa" is the balance field
+        console.log(`Balance for ${email}: ${balance}`);
+      }
+    });
+
+    if (balance !== null) {
+      return balance;
+    } else {
+      console.log('User not found');
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching balance: ", error);
+  }
+}
+
+const CoinPage = ({ route, navigation }) => {
+  const { email } = route.params; // Get the email passed from the login screen
   const [selectedCoin, setSelectedCoin] = useState('BTCUSDT');
   const [coinData, setCoinData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showCoinData, setShowCoinData] = useState(false);
-
+  const [balance, setBalance] = useState(0); // Initial balance set to 0
+  const [tradeAmount, setTradeAmount] = useState('');
+  const [inventory, setInventory] = useState({});
+  
   const binance = process.env.REACT_APP_BINANCE_API_URL;
 
+  useEffect(() => {
+    const fetchBalance = async () => {
+      const userBalance = await getBalanceByEmail(email);
+      if (userBalance !== null) {
+        setBalance(userBalance);
+      }
+    };
+
+    fetchBalance();
+  }, [email]);
 
   const coins = [
     'BTCUSDT',
@@ -37,8 +80,20 @@ const CoinPage = () => {
     }
   };
 
+  const handleBuy = async () => {
+    if (coinData && tradeAmount !== '') {
+      await handleCoin(selectedCoin, tradeAmount, coinData.lastPrice, email, balance, setBalance, setInventory);
+    }
+  };
+
+  const handleSell = async () => {
+    await sellCoin(db, email, selectedCoin, tradeAmount, coinData, balance, setBalance, inventory, setInventory);
+  };
+
   return (
     <View style={styles.container}>
+      <Text style={styles.balanceText}>Balance: ${balance.toFixed(2)}</Text>
+
       <View style={styles.dropdownContainer}>
         <Picker
           selectedValue={selectedCoin}
@@ -76,6 +131,26 @@ const CoinPage = () => {
           </View>
         )
       )}
+
+      <TextInput
+        style={styles.input}
+        placeholder="Amount"
+        keyboardType="numeric"
+        value={tradeAmount}
+        onChangeText={setTradeAmount}
+      />
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.tradeButton} onPress={handleBuy}>
+          <Text style={styles.buttonText}>Buy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tradeButton, { backgroundColor: '#dc3545' }]} onPress={handleSell}>
+          <Text style={styles.buttonText}>Sell</Text>
+        </TouchableOpacity>
+      </View>
+
+      
+      
     </View>
   );
 };
@@ -86,7 +161,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 390,
+    paddingBottom: 300,
+  },
+  balanceText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
   },
   dropdownContainer: {
     width: '80%',
@@ -138,6 +218,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#000',
+  },
+  input: {
+    height: 50,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    marginTop: 20,
+    width: '80%',
+    paddingHorizontal: 10,
+    fontSize: 16,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    width: '80%',
+  },
+  tradeButton: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    borderRadius: 5,
+    alignItems: 'center',
+    width: '45%',
   },
 });
 
